@@ -5,12 +5,12 @@ rule
    main : main param { puts val[3].call }
         | param      { puts val[0].call }
 
-   exp : '(' param params ')' { result = ->{ val[1].call(val[2]) } }
+   exp : '(' param params ')' { result = Exp.new val[1], val[2] }
 
    params : params param { result = val[0] << val[1] }
           |              { result = [] }
 
-   param : '(' FUNC '(' params ')' param ')' { result = Func.new(val[3], val[5]) }
+   param : '(' FUNC '(' params ')' param ')' { result = func_new val[3], val[5] }
          | exp
          | NUMBER
          | BOOL
@@ -48,32 +48,34 @@ $variables = {
    'define' => ->(p) { $variables[p[0].name] = p[1] }
 }
 
-class Func
-   def initialize params, exp
-      @params, @exp = params, exp
+class Exp
+   def initialize func, params
+      @func, @params = func, params
    end
 
-   def raw
-      self
+   def call
+      @func.call @params
    end
-   
-   def call p
+end
+
+def func_new params, exp
+   lambda do |p|
       values = []
       p.each do |ap|
-         v = if ap.is_a?(Func) || ap.is_a?(Identifier) && ap.raw.is_a?(Func)
-                ap.raw
-             else
+         v = if ap.is_a?(Exp) || ap.is_a?(Identifier) && !ap.raw.is_a?(Proc)
                 ap.call
+             else
+                ap
              end
          values << v
       end
       stack = []
-      @params.each_index do |i|
-         stack << $variables[@params[i].name]
-         $variables[@params[i].name] = values[i]
+      params.each_index do |i|
+         stack << $variables[params[i].name]
+         $variables[params[i].name] = values[i]
       end
-      r = @exp.call
-      @params.each do |id|
+      r = exp.call
+      params.each do |id|
          $variables[id.name] = stack.shift
       end
       r

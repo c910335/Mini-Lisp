@@ -35,32 +35,34 @@ $variables = {
    'define' => ->(p) { $variables[p[0].name] = p[1] }
 }
 
-class Func
-   def initialize params, exp
-      @params, @exp = params, exp
+class Exp
+   def initialize func, params
+      @func, @params = func, params
    end
 
-   def raw
-      self
+   def call
+      @func.call @params
    end
-   
-   def call p
+end
+
+def func_new params, exp
+   lambda do |p|
       values = []
       p.each do |ap|
-         v = if ap.is_a?(Func) || ap.is_a?(Identifier) && ap.raw.is_a?(Func)
-                ap.raw
-             else
+         v = if ap.is_a?(Exp) || ap.is_a?(Identifier) && !ap.raw.is_a?(Proc)
                 ap.call
+             else
+                ap
              end
          values << v
       end
       stack = []
-      @params.each_index do |i|
-         stack << $variables[@params[i].name]
-         $variables[@params[i].name] = values[i]
+      params.each_index do |i|
+         stack << $variables[params[i].name]
+         $variables[params[i].name] = values[i]
       end
-      r = @exp.call
-      @params.each do |id|
+      r = exp.call
+      params.each do |id|
          $variables[id.name] = stack.shift
       end
       r
@@ -98,7 +100,7 @@ end
 
 class Lisp < Racc::Parser
 
-module_eval(<<'...end lisp.racc/module_eval...', 'lisp.racc', 113)
+module_eval(<<'...end lisp.racc/module_eval...', 'lisp.racc', 115)
 
 ...end lisp.racc/module_eval...
 ##### State transition tables begin ###
@@ -223,7 +225,7 @@ module_eval(<<'.,.,', 'lisp.racc', 5)
 
 module_eval(<<'.,.,', 'lisp.racc', 7)
   def _reduce_3(val, _values, result)
-     result = ->{ val[1].call(val[2]) } 
+     result = Exp.new val[1], val[2] 
     result
   end
 .,.,
@@ -244,7 +246,7 @@ module_eval(<<'.,.,', 'lisp.racc', 10)
 
 module_eval(<<'.,.,', 'lisp.racc', 12)
   def _reduce_6(val, _values, result)
-     result = Func.new(val[3], val[5]) 
+     result = func_new val[3], val[5] 
     result
   end
 .,.,

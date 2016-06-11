@@ -2,8 +2,8 @@ class Lisp
 
 rule
 
-   main : main param { puts val[3].call }
-        | param      { puts val[0].call }
+   main : # Toku ni nashi.
+        | main param { result = val[1].call; puts result if $interaction }
 
    exp : '(' param params ')' { result = Exp.new val[1], val[2] }
 
@@ -45,8 +45,15 @@ $variables = {
       str
    },
    'if' => ->(p) { if p[0].call then p[1].call else p[2].call end },
-   'define' => ->(p) { $variables[p[0].name] = p[1] }
+   'define' => lambda { |p|
+      $variables[p[0].name] = if p[1].is_a?(Exp)
+                                 p[1].call
+                              else
+                                 p[1]
+                              end
+   }
 }
+$interaction = true
 
 class Exp
    def initialize func, params
@@ -99,28 +106,45 @@ class Identifier
    end
 end
 
-class Fixnum
+module Call
    def call
       self
    end
 end
 
-class String
-   def call
-      self
-   end
-end
+class Fixnum include Call end
+class TrueClass include Call end
+class FalseClass include Call end
 
 ---- inner ----
 
 ---- footer ----
 
+filename = ARGV[0]
 lisp = Lisp.new
-loop do
-   print '> '
+
+if filename.nil?
+   loop do
+      print '> '
+      begin
+         lisp.scan_str gets
+      rescue ParseError, NoMemoryError
+         puts 'Syntax Error'
+      rescue TypeError
+         puts 'Type Error'
+      rescue
+         puts 'Syntax Error'
+      end
+   end
+else
+   $interaction = false
    begin
-      lisp.scan_str(gets)
-   rescue ParseError
+      lisp.scan_file filename
+   rescue ParseError, NoMemoryError
+      puts 'Syntax Error'
+   rescue TypeError
+      puts 'Type Error'
+   rescue
       puts 'Syntax Error'
    end
 end

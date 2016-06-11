@@ -1,0 +1,19 @@
+(print-num (* 1 2 3 4 5))
+(print-bool #t)
+(print-bool ((fun (x y) (= x y)) 2 5))
+(define www (+ 1 2 3 4 5))
+(print-num www)
+(define fact (fun (n)
+   (if (< n 3)
+      n
+      (* n (fact (- n 1)))
+   )
+))
+(print-num (fact 10))
+(define chose (fun (chose-fun x y)
+   (if (chose-fun x y)
+      x
+      y
+   )
+))
+(print-num (chose (fun (x y) (> x y)) 2 1))

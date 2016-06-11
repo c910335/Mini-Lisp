@@ -32,8 +32,15 @@ $variables = {
       str
    },
    'if' => ->(p) { if p[0].call then p[1].call else p[2].call end },
-   'define' => ->(p) { $variables[p[0].name] = p[1] }
+   'define' => lambda { |p|
+      $variables[p[0].name] = if p[1].is_a?(Exp)
+                                 p[1].call
+                              else
+                                 p[1]
+                              end
+   }
 }
+$interaction = true
 
 class Exp
    def initialize func, params
@@ -86,65 +93,61 @@ class Identifier
    end
 end
 
-class Fixnum
+module Call
    def call
       self
    end
 end
 
-class String
-   def call
-      self
-   end
-end
+class Fixnum include Call end
+class TrueClass include Call end
+class FalseClass include Call end
 
 class Lisp < Racc::Parser
 
-module_eval(<<'...end lisp.racc/module_eval...', 'lisp.racc', 115)
+module_eval(<<'...end lisp.racc/module_eval...', 'lisp.racc', 120)
 
 ...end lisp.racc/module_eval...
 ##### State transition tables begin ###
 
 racc_action_table = [
-     8,    12,     3,    14,    20,     5,     6,     7,     3,   nil,
-   nil,     5,     6,     7,     3,   nil,    11,     5,     6,     7,
-     3,    15,   nil,     5,     6,     7,     3,    18,   nil,     5,
-     6,     7,     3,   nil,   nil,     5,     6,     7 ]
+     2,     9,     4,    13,    19,     6,     7,     8,     4,   nil,
+    11,     6,     7,     8,     4,    14,   nil,     6,     7,     8,
+     4,    17,   nil,     6,     7,     8,     4,   nil,   nil,     6,
+     7,     8 ]
 
 racc_action_check = [
-     1,     8,     1,    11,    19,     1,     1,     1,     0,   nil,
-   nil,     0,     0,     0,     3,   nil,     3,     3,     3,     3,
-    13,    13,   nil,    13,    13,    13,    17,    17,   nil,    17,
-    17,    17,    18,   nil,   nil,    18,    18,    18 ]
+     1,     2,     1,    11,    18,     1,     1,     1,     4,   nil,
+     4,     4,     4,     4,    12,    12,   nil,    12,    12,    12,
+    16,    16,   nil,    16,    16,    16,    17,   nil,   nil,    17,
+    17,    17 ]
 
 racc_action_pointer = [
-     6,     0,   nil,    12,   nil,   nil,   nil,   nil,     1,   nil,
-   nil,     1,   nil,    18,   nil,   nil,   nil,    24,    30,     1,
-   nil ]
+   nil,     0,     1,   nil,     6,   nil,   nil,   nil,   nil,   nil,
+   nil,     1,    12,   nil,   nil,   nil,    18,    24,     1,   nil ]
 
 racc_action_default = [
-   -11,   -11,    -2,   -11,    -7,    -8,    -9,   -10,   -11,    -1,
-    -5,   -11,    21,   -11,    -5,    -3,    -4,   -11,   -11,   -11,
-    -6 ]
+    -1,   -11,   -11,    -2,   -11,    -7,    -8,    -9,   -10,    20,
+    -5,   -11,   -11,    -5,    -3,    -4,   -11,   -11,   -11,    -6 ]
 
 racc_goto_table = [
-     2,     9,    13,    10,     1,   nil,    17,   nil,   nil,   nil,
-   nil,   nil,   nil,   nil,   nil,   nil,   nil,   nil,    19 ]
+     3,    12,     1,    10,    16,   nil,   nil,   nil,   nil,   nil,
+   nil,   nil,   nil,   nil,   nil,   nil,    18 ]
 
 racc_goto_check = [
-     2,     2,     4,     2,     1,   nil,     4,   nil,   nil,   nil,
-   nil,   nil,   nil,   nil,   nil,   nil,   nil,   nil,     2 ]
+     2,     4,     1,     2,     4,   nil,   nil,   nil,   nil,   nil,
+   nil,   nil,   nil,   nil,   nil,   nil,     2 ]
 
 racc_goto_pointer = [
-   nil,     4,     0,   nil,    -8 ]
+   nil,     2,    -1,   nil,    -9 ]
 
 racc_goto_default = [
-   nil,   nil,    16,     4,   nil ]
+   nil,   nil,    15,     5,   nil ]
 
 racc_reduce_table = [
   0, 0, :racc_error,
-  2, 9, :_reduce_1,
-  1, 9, :_reduce_2,
+  0, 9, :_reduce_none,
+  2, 9, :_reduce_2,
   4, 11, :_reduce_3,
   2, 12, :_reduce_4,
   0, 12, :_reduce_5,
@@ -156,7 +159,7 @@ racc_reduce_table = [
 
 racc_reduce_n = 11
 
-racc_shift_n = 21
+racc_shift_n = 20
 
 racc_token_table = {
   false => 0,
@@ -209,16 +212,11 @@ Racc_debug_parser = false
 
 # reduce 0 omitted
 
-module_eval(<<'.,.,', 'lisp.racc', 4)
-  def _reduce_1(val, _values, result)
-     puts val[3].call 
-    result
-  end
-.,.,
+# reduce 1 omitted
 
 module_eval(<<'.,.,', 'lisp.racc', 5)
   def _reduce_2(val, _values, result)
-     puts val[0].call 
+     result = val[1].call; puts result if $interaction 
     result
   end
 .,.,
@@ -271,12 +269,31 @@ end
 end   # class Lisp
 
 
+filename = ARGV[0]
 lisp = Lisp.new
-loop do
-   print '> '
+
+if filename.nil?
+   loop do
+      print '> '
+      begin
+         lisp.scan_str gets
+      rescue ParseError, NoMemoryError
+         puts 'Syntax Error'
+      rescue TypeError
+         puts 'Type Error'
+      rescue
+         puts 'Syntax Error'
+      end
+   end
+else
+   $interaction = false
    begin
-      lisp.scan_str(gets)
-   rescue ParseError
+      lisp.scan_file filename
+   rescue ParseError, NoMemoryError
+      puts 'Syntax Error'
+   rescue TypeError
+      puts 'Type Error'
+   rescue
       puts 'Syntax Error'
    end
 end

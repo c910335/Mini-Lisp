@@ -1,0 +1,124 @@
+class Lisp
+
+rule
+
+   main : main param { puts val[3].call }
+        | param      { puts val[0].call }
+
+   exp : '(' param params ')' { result = ->{ val[1].call(val[2]) } }
+
+   params : params param { result = val[0] << val[1] }
+          |              { result = [] }
+
+   param : '(' FUNC '(' params ')' param ')' { result = Func.new(val[3], val[5]) }
+         | exp
+         | NUMBER
+         | BOOL
+         | ID                                { result = Identifier.new val[0] }
+
+end
+
+---- header ----
+
+require './lisp.rex'
+
+$variables = {
+   '+' => ->(p) { s = 0; p.each { |n| s += n.call }; s },
+   '-' => ->(p) { p[0].call - p[1].call },
+   '*' => ->(p) { s = 1; p.each { |n| s *= n.call }; s },
+   '/' => ->(p) { p[0].call / p[1].call },
+   'mod' => ->(p) { p[0].call % p[1].call },
+   '>' => ->(p) { p[0].call > p[1].call },
+   '<' => ->(p) { p[0].call < p[1].call },
+   '=' => ->(p) { p[0].call == p[1].call },
+   'and' => ->(p) { p[0].call && p[1].call },
+   'or' => ->(p) { p[0].call || p[1].call },
+   'not' => ->(p) {!p[0].call},
+   'print-num' => lambda { |p|
+      str = p.first.call.to_i
+      puts str
+      str
+   },
+   'print-bool' => lambda { |p|
+      str = p.first.call ? '#t' : '#f'
+      puts str
+      str
+   },
+   'if' => ->(p) { if p[0].call then p[1].call else p[2].call end },
+   'define' => ->(p) { $variables[p[0].name] = p[1] }
+}
+
+class Func
+   def initialize params, exp
+      @params, @exp = params, exp
+   end
+
+   def raw
+      self
+   end
+   
+   def call p
+      values = []
+      p.each do |ap|
+         v = if ap.is_a?(Func) || ap.is_a?(Identifier) && ap.raw.is_a?(Func)
+                ap.raw
+             else
+                ap.call
+             end
+         values << v
+      end
+      stack = []
+      @params.each_index do |i|
+         stack << $variables[@params[i].name]
+         $variables[@params[i].name] = values[i]
+      end
+      r = @exp.call
+      @params.each do |id|
+         $variables[id.name] = stack.shift
+      end
+      r
+   end
+end
+
+class Identifier
+
+   attr_reader :name
+
+   def initialize name
+      @name = name
+   end
+
+   def raw
+      $variables[@name]
+   end
+
+   def call p = nil
+      p.nil? ? $variables[@name].call : $variables[@name].call(p)
+   end
+end
+
+class Fixnum
+   def call
+      self
+   end
+end
+
+class String
+   def call
+      self
+   end
+end
+
+---- inner ----
+
+---- footer ----
+
+lisp = Lisp.new
+loop do
+   print '> '
+   begin
+      lisp.scan_str(gets)
+   rescue ParseError
+      puts 'Syntax Error'
+   end
+end

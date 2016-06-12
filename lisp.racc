@@ -3,14 +3,14 @@ class Lisp
 rule
 
    main : # Toku ni nashi.
-        | main param { result = val[1].call; puts result if $interaction }
+        | main param { result = val[1].value; puts result if $interaction }
 
    exp : '(' param params ')' { result = Exp.new val[1], val[2] }
 
    params : params param { result = val[0] << val[1] }
           |              { result = [] }
 
-   param : '(' FUNC '(' params ')' param ')' { result = func_new val[3], val[5] }
+   param : '(' FUNC '(' params ')' params ')' { result = func_new val[3], val[5] }
          | exp
          | NUMBER
          | BOOL
@@ -68,7 +68,7 @@ class TrueClass include SelfValue end
 class FalseClass include SelfValue end
 class Proc include SelfValue end
 
-def func_new params, exp
+def func_new params, exps
    lambda do |p|
       values = []
       p.each do |ap|
@@ -79,7 +79,10 @@ def func_new params, exp
          stack << $variables[params[i].name]
          $variables[params[i].name] = values[i]
       end
-      r = exp.call
+      r = nil
+      exps.each do |exp|
+         r = exp.value
+      end
       params.each do |id|
          $variables[id.name] = stack.shift
       end

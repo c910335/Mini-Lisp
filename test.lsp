@@ -17,3 +17,9 @@
    )
 ))
 (print-num (chose (fun (x y) (> x y)) 2 1))
+(define dist-square
+  (fun (x y)
+       (define square
+         (fun (x) (* x x)))
+       (+ (square x) (square y))))
+(print-num (dist-square 5 6))

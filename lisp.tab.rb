@@ -55,7 +55,7 @@ class TrueClass include SelfValue end
 class FalseClass include SelfValue end
 class Proc include SelfValue end
 
-def func_new params, exp
+def func_new params, exps
    lambda do |p|
       values = []
       p.each do |ap|
@@ -66,7 +66,10 @@ def func_new params, exp
          stack << $variables[params[i].name]
          $variables[params[i].name] = values[i]
       end
-      r = exp.call
+      r = nil
+      exps.each do |exp|
+         r = exp.value
+      end
       params.each do |id|
          $variables[id.name] = stack.shift
       end
@@ -103,7 +106,7 @@ $interaction = true
 
 class Lisp < Racc::Parser
 
-module_eval(<<'...end lisp.racc/module_eval...', 'lisp.racc', 118)
+module_eval(<<'...end lisp.racc/module_eval...', 'lisp.racc', 121)
 
    def interpret source
       begin
@@ -125,35 +128,33 @@ module_eval(<<'...end lisp.racc/module_eval...', 'lisp.racc', 118)
 ##### State transition tables begin ###
 
 racc_action_table = [
-     2,     9,     4,    13,    19,     6,     7,     8,     4,   nil,
+     2,     9,     4,    13,   nil,     6,     7,     8,     4,   nil,
     11,     6,     7,     8,     4,    14,   nil,     6,     7,     8,
-     4,    17,   nil,     6,     7,     8,     4,   nil,   nil,     6,
+     4,    17,   nil,     6,     7,     8,     4,    19,   nil,     6,
      7,     8 ]
 
 racc_action_check = [
-     1,     2,     1,    11,    18,     1,     1,     1,     4,   nil,
+     1,     2,     1,    11,   nil,     1,     1,     1,     4,   nil,
      4,     4,     4,     4,    12,    12,   nil,    12,    12,    12,
-    16,    16,   nil,    16,    16,    16,    17,   nil,   nil,    17,
-    17,    17 ]
+    16,    16,   nil,    16,    16,    16,    18,    18,   nil,    18,
+    18,    18 ]
 
 racc_action_pointer = [
    nil,     0,     1,   nil,     6,   nil,   nil,   nil,   nil,   nil,
-   nil,     1,    12,   nil,   nil,   nil,    18,    24,     1,   nil ]
+   nil,     1,    12,   nil,   nil,   nil,    18,   nil,    24,   nil ]
 
 racc_action_default = [
     -1,   -11,   -11,    -2,   -11,    -7,    -8,    -9,   -10,    20,
-    -5,   -11,   -11,    -5,    -3,    -4,   -11,   -11,   -11,    -6 ]
+    -5,   -11,   -11,    -5,    -3,    -4,   -11,    -5,   -11,    -6 ]
 
 racc_goto_table = [
-     3,    12,     1,    10,    16,   nil,   nil,   nil,   nil,   nil,
-   nil,   nil,   nil,   nil,   nil,   nil,    18 ]
+    12,     3,     1,    16,    10,   nil,   nil,    18 ]
 
 racc_goto_check = [
-     2,     4,     1,     2,     4,   nil,   nil,   nil,   nil,   nil,
-   nil,   nil,   nil,   nil,   nil,   nil,     2 ]
+     4,     2,     1,     4,     2,   nil,   nil,     4 ]
 
 racc_goto_pointer = [
-   nil,     2,    -1,   nil,    -9 ]
+   nil,     2,     0,   nil,   -10 ]
 
 racc_goto_default = [
    nil,   nil,    15,     5,   nil ]
@@ -230,7 +231,7 @@ Racc_debug_parser = false
 
 module_eval(<<'.,.,', 'lisp.racc', 5)
   def _reduce_2(val, _values, result)
-     result = val[1].call; puts result if $interaction 
+     result = val[1].value; puts result if $interaction 
     result
   end
 .,.,

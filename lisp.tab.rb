@@ -9,42 +9,13 @@ require 'racc/parser.rb'
 
 require './lisp.rex'
 
-$variables = {
-   '+' => ->(p) { s = 0; p.each { |n| s += n.call }; s },
-   '-' => ->(p) { p[0].call - p[1].call },
-   '*' => ->(p) { s = 1; p.each { |n| s *= n.call }; s },
-   '/' => ->(p) { p[0].call / p[1].call },
-   'mod' => ->(p) { p[0].call % p[1].call },
-   '>' => ->(p) { p[0].call > p[1].call },
-   '<' => ->(p) { p[0].call < p[1].call },
-   '=' => ->(p) { p[0].call == p[1].call },
-   'and' => ->(p) { p[0].call && p[1].call },
-   'or' => ->(p) { p[0].call || p[1].call },
-   'not' => ->(p) {!p[0].call},
-   'print-num' => lambda { |p|
-      str = p.first.call.to_i
-      puts str
-      str
-   },
-   'print-bool' => lambda { |p|
-      str = p.first.call ? '#t' : '#f'
-      puts str
-      str
-   },
-   'if' => ->(p) { if p[0].call then p[1].call else p[2].call end },
-   'define' => lambda { |p|
-      $variables[p[0].name] = if p[1].is_a?(Exp)
-                                 p[1].call
-                              else
-                                 p[1]
-                              end
-   }
-}
-$interaction = true
-
 class Exp
    def initialize func, params
       @func, @params = func, params
+   end
+
+   def value
+      call
    end
 
    def call
@@ -52,16 +23,43 @@ class Exp
    end
 end
 
+class Identifier
+
+   attr_reader :name
+
+   def initialize name
+      @name = name
+   end
+
+   def value
+      $variables[@name].value
+   end
+
+   def call p = nil
+      if p.nil?
+         value.call
+      else
+         value.call p
+      end
+   end
+end
+
+module SelfValue
+   def value
+      self
+   end
+end
+
+class Fixnum include SelfValue end
+class TrueClass include SelfValue end
+class FalseClass include SelfValue end
+class Proc include SelfValue end
+
 def func_new params, exp
    lambda do |p|
       values = []
       p.each do |ap|
-         v = if ap.is_a?(Exp) || ap.is_a?(Identifier) && !ap.raw.is_a?(Proc)
-                ap.call
-             else
-                ap
-             end
-         values << v
+         values << ap.value
       end
       stack = []
       params.each_index do |i|
@@ -76,36 +74,52 @@ def func_new params, exp
    end
 end
 
-class Identifier
-
-   attr_reader :name
-
-   def initialize name
-      @name = name
-   end
-
-   def raw
-      $variables[@name]
-   end
-
-   def call p = nil
-      p.nil? ? $variables[@name].call : $variables[@name].call(p)
-   end
-end
-
-module Call
-   def call
-      self
-   end
-end
-
-class Fixnum include Call end
-class TrueClass include Call end
-class FalseClass include Call end
+$variables = {
+   '+' => ->(p) { s = 0; p.each { |n| s += n.value }; s },
+   '-' => ->(p) { p[0].value - p[1].value },
+   '*' => ->(p) { s = 1; p.each { |n| s *= n.value }; s },
+   '/' => ->(p) { p[0].value / p[1].value },
+   'mod' => ->(p) { p[0].value % p[1].value },
+   '>' => ->(p) { p[0].value > p[1].value },
+   '<' => ->(p) { p[0].value < p[1].value },
+   '=' => ->(p) { p[0].value == p[1].value },
+   'and' => ->(p) { p[0].value && p[1].value },
+   'or' => ->(p) { p[0].value || p[1].value },
+   'not' => ->(p) { !p[0].value },
+   'print-num' => lambda { |p|
+      num = p.first.value.to_i
+      puts num
+      num
+   },
+   'print-bool' => lambda { |p|
+      bool = p.first.value ? '#t' : '#f'
+      puts bool
+      bool
+   },
+   'if' => ->(p) { if p[0].value then p[1].value else p[2].value end },
+   'define' => ->(p) { $variables[p[0].name] = p[1].value }
+}
+$interaction = true
 
 class Lisp < Racc::Parser
 
-module_eval(<<'...end lisp.racc/module_eval...', 'lisp.racc', 120)
+module_eval(<<'...end lisp.racc/module_eval...', 'lisp.racc', 118)
+
+   def interpret source
+      begin
+         if source == :stdin
+            scan_str gets
+         else
+            scan_file source
+         end
+      rescue ParseError, NoMemoryError
+         puts 'Syntax Error'
+      rescue TypeError
+         puts 'Type Error'
+      rescue
+         puts 'Syntax Error'
+      end
+   end
 
 ...end lisp.racc/module_eval...
 ##### State transition tables begin ###
@@ -275,25 +289,9 @@ lisp = Lisp.new
 if filename.nil?
    loop do
       print '> '
-      begin
-         lisp.scan_str gets
-      rescue ParseError, NoMemoryError
-         puts 'Syntax Error'
-      rescue TypeError
-         puts 'Type Error'
-      rescue
-         puts 'Syntax Error'
-      end
+      lisp.interpret :stdin
    end
 else
    $interaction = false
-   begin
-      lisp.scan_file filename
-   rescue ParseError, NoMemoryError
-      puts 'Syntax Error'
-   rescue TypeError
-      puts 'Type Error'
-   rescue
-      puts 'Syntax Error'
-   end
+   lisp.interpret filename
 end

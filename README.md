@@ -1,8 +1,9 @@
 # Mini-Lisp
 
-## Introduction
-
 Final project for compiler course.
+
+## Spec
+[Compiler Final Project.pptx](Compiler Final Project.pptx)
 
 ## Usage
 

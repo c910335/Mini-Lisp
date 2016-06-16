@@ -32,7 +32,10 @@ class Identifier
    end
 
    def value
-      $variables[@name].value
+      $variables.reverse_each do |variables|
+         return variables[@name].value if variables.key? @name
+      end
+      raise
    end
 
    def call p = nil
@@ -41,6 +44,41 @@ class Identifier
       else
          value.call p
       end
+   end
+end
+
+class Function
+   def initialize params, exps
+      @params, @exps = params, exps
+   end
+
+   def value
+      cache = $variables.dup
+      lambda do |p|
+         variables = {}
+         cache.each do |c|
+            variables.merge! c if c[:state] == :inactive
+         end
+         values = []
+         p.each do |ap|
+            values << ap.value
+         end
+         @params.each_index do |i|
+            variables[@params[i].name] = values[i]
+         end
+         variables[:state] = :active
+         $variables << variables
+         r = nil
+         @exps.each do |exp|
+            r = exp.value
+         end
+         $variables.pop[:state] = :inactive
+         r
+      end
+   end
+
+   def call params
+      value.call params
    end
 end
 
@@ -55,39 +93,17 @@ class TrueClass include SelfValue end
 class FalseClass include SelfValue end
 class Proc include SelfValue end
 
-def func_new params, exps
-   lambda do |p|
-      values = []
-      p.each do |ap|
-         values << ap.value
-      end
-      stack = []
-      params.each_index do |i|
-         stack << $variables[params[i].name]
-         $variables[params[i].name] = values[i]
-      end
-      r = nil
-      exps.each do |exp|
-         r = exp.value
-      end
-      params.each do |id|
-         $variables[id.name] = stack.shift
-      end
-      r
-   end
-end
-
-$variables = {
-   '+' => ->(p) { s = 0; p.each { |n| s += n.value }; s },
+$variables = [{
+   '+' => ->(p) { r = 0; p.each { |n| r += n.value }; r },
    '-' => ->(p) { p[0].value - p[1].value },
-   '*' => ->(p) { s = 1; p.each { |n| s *= n.value }; s },
+   '*' => ->(p) { r = 1; p.each { |n| r *= n.value }; r },
    '/' => ->(p) { p[0].value / p[1].value },
    'mod' => ->(p) { p[0].value % p[1].value },
    '>' => ->(p) { p[0].value > p[1].value },
    '<' => ->(p) { p[0].value < p[1].value },
-   '=' => ->(p) { p[0].value == p[1].value },
-   'and' => ->(p) { p[0].value && p[1].value },
-   'or' => ->(p) { p[0].value || p[1].value },
+   '=' => ->(p) { pv = p[0].value; (1...p.size).each { |i| return false if pv != p[i].value  }; true },
+   'and' => ->(p) { p.each { |n| return false unless n.value }; true },
+   'or' => ->(p) { p.each { |n| return true if n.value }; false },
    'not' => ->(p) { !p[0].value },
    'print-num' => lambda { |p|
       num = p.first.value.to_i
@@ -100,13 +116,14 @@ $variables = {
       bool
    },
    'if' => ->(p) { if p[0].value then p[1].value else p[2].value end },
-   'define' => ->(p) { $variables[p[0].name] = p[1].value }
-}
+   'define' => ->(p) { $variables.last[p[0].name] = p[1].value },
+   state: :active
+}]
 $interaction = true
 
 class Lisp < Racc::Parser
 
-module_eval(<<'...end lisp.racc/module_eval...', 'lisp.racc', 121)
+module_eval(<<'...end lisp.racc/module_eval...', 'lisp.racc', 138)
 
    def interpret source
       begin
@@ -259,7 +276,7 @@ module_eval(<<'.,.,', 'lisp.racc', 10)
 
 module_eval(<<'.,.,', 'lisp.racc', 12)
   def _reduce_6(val, _values, result)
-     result = func_new val[3], val[5] 
+     result = Function.new val[3], val[5] 
     result
   end
 .,.,

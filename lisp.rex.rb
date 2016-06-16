@@ -60,7 +60,7 @@ class Lisp < Racc::Parser
       when (text = @ss.scan(/\s+/))
         ;
 
-      when (text = @ss.scan(/\d+/))
+      when (text = @ss.scan(/0|[1-9]\d*|-[1-9]\d*/))
          action { [:NUMBER, text.to_i] }
 
       when (text = @ss.scan(/\#[ft]/))
@@ -69,7 +69,7 @@ class Lisp < Racc::Parser
       when (text = @ss.scan(/fun/))
          action { [:FUNC, text]}
 
-      when (text = @ss.scan(/[$a-z_+\-*\/<=>][0-9a-z_$+\-*\/<=>]*/))
+      when (text = @ss.scan(/[+\-*\/<=>]|[a-z][0-9a-z\-]*/))
          action { [:ID, text]}
 
       when (text = @ss.scan(/.|\n/))

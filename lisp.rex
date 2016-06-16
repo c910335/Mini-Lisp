@@ -1,10 +1,10 @@
 class Lisp
 macro
    BLANK      \s+
-   INTEGER    \d+
+   INTEGER    0|[1-9]\d*|-[1-9]\d*
    BOOLEAN    \#[ft]
    FUNCTION   fun
-   IDENTIFIER [$a-z_+\-*\/<=>][0-9a-z_$+\-*\/<=>]*
+   IDENTIFIER [+\-*\/<=>]|[a-z][0-9a-z\-]*
 rule
    {BLANK}      # Toku ni nashi.
    {INTEGER}    { [:NUMBER, text.to_i] }

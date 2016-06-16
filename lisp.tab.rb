@@ -9,6 +9,13 @@ require 'racc/parser.rb'
 
 require './lisp.rex'
 
+class ParameterError < RuntimeError
+   attr_reader :message
+   def initialize need, got
+      @message = "Need #{need} arguments, but got #{got}."
+   end
+end
+
 class Exp
    def initialize func, params
       @func, @params = func, params
@@ -55,6 +62,7 @@ class Function
    def value
       cache = $variables.dup
       lambda do |p|
+         cp @params.size, p
          variables = {}
          cache.each do |c|
             variables.merge! c if c[:state] == :inactive
@@ -93,37 +101,44 @@ class TrueClass include SelfValue end
 class FalseClass include SelfValue end
 class Proc include SelfValue end
 
+def cp num, p, strict = true
+   raise ParameterError.new num, p.size if strict && num != p.size
+   raise ParameterError.new num, p.size unless strict || p.size >= num
+end
+
 $variables = [{
-   '+' => ->(p) { r = 0; p.each { |n| r += n.value }; r },
-   '-' => ->(p) { p[0].value - p[1].value },
-   '*' => ->(p) { r = 1; p.each { |n| r *= n.value }; r },
-   '/' => ->(p) { p[0].value / p[1].value },
-   'mod' => ->(p) { p[0].value % p[1].value },
-   '>' => ->(p) { p[0].value > p[1].value },
-   '<' => ->(p) { p[0].value < p[1].value },
-   '=' => ->(p) { pv = p[0].value; (1...p.size).each { |i| return false if pv != p[i].value  }; true },
-   'and' => ->(p) { p.each { |n| return false unless n.value }; true },
-   'or' => ->(p) { p.each { |n| return true if n.value }; false },
-   'not' => ->(p) { !p[0].value },
+   '+' => ->(p) { cp(2, p, false); r = 0; p.each { |n| r += n.value }; r },
+   '-' => ->(p) { cp(2, p); p[0].value - p[1].value },
+   '*' => ->(p) { cp(2, p, false); r = 1; p.each { |n| r *= n.value }; r },
+   '/' => ->(p) { cp(2, p); p[0].value / p[1].value },
+   'mod' => ->(p) { cp(2, p); p[0].value % p[1].value },
+   '>' => ->(p) { cp(2, p); p[0].value > p[1].value },
+   '<' => ->(p) { cp(2, p); p[0].value < p[1].value },
+   '=' => ->(p) { cp(2, p, false); pv = p[0].value; (1...p.size).each { |i| return false if pv != p[i].value  }; true },
+   'and' => ->(p) { cp(2, p, false); p.each { |n| return false unless n.value }; true },
+   'or' => ->(p) { cp(2, p, false); p.each { |n| return true if n.value }; false },
+   'not' => ->(p) { cp(1, p); !p[0].value },
    'print-num' => lambda { |p|
+      cp(1, p);
       num = p.first.value.to_i
       puts num
       num
    },
    'print-bool' => lambda { |p|
+      cp(1, p);
       bool = p.first.value ? '#t' : '#f'
       puts bool
       bool
    },
-   'if' => ->(p) { if p[0].value then p[1].value else p[2].value end },
-   'define' => ->(p) { $variables.last[p[0].name] = p[1].value },
+   'if' => ->(p) { cp(3, p); if p[0].value then p[1].value else p[2].value end },
+   'define' => ->(p) { cp(2, p); $variables.last[p[0].name] = p[1].value },
    state: :active
 }]
 $interaction = true
 
 class Lisp < Racc::Parser
 
-module_eval(<<'...end lisp.racc/module_eval...', 'lisp.racc', 138)
+module_eval(<<'...end lisp.racc/module_eval...', 'lisp.racc', 153)
 
    def interpret source
       begin
@@ -132,10 +147,12 @@ module_eval(<<'...end lisp.racc/module_eval...', 'lisp.racc', 138)
          else
             scan_file source
          end
-      rescue ParseError, NoMemoryError
+      rescue ParameterError => e
+         puts e.message
+      rescue ParseError, NoMethodError
          puts 'Syntax Error'
       rescue TypeError
-         puts 'Type Error'
+         puts 'Type error!'
       rescue
          puts 'Syntax Error'
       end

@@ -38,8 +38,8 @@ class Exp
       call
    end
 
-   def call
-      @func.call @params
+   def call p = nil
+      @func.value.call @params
    end
 end
 
